@@ -1,22 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text to Sql </title>
+    <title>Text to SQL</title>
 </head>
 
 <body>
-    <h1>Text to Sql Converter</h1>
+
+    <h1>Text to SQL Converter</h1>
+
     <form method="POST">
+
         <p>Enter your question:</p>
 
         <textarea name="question" rows="5" cols="50"></textarea>
+
         <br><br>
 
-        <button type="submit"> Convert to Sql</button>
+        <button type="submit">Convert to SQL</button>
+
     </form>
+
+
+    {% if sql %}
+
+    <h2>Generated SQL:</h2>
+
+    <pre>{{ sql }}</pre>
+
+    {% endif %}
+
 </body>
 
 </html>
