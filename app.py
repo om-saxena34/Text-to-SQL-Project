@@ -13,6 +13,7 @@ client = genai.Client()
 def home():
 
     sql = ""
+    question = ""
 
     if request.method == "POST":
 
@@ -24,9 +25,15 @@ Convert the following question into SQL.
 Table: students
 Columns: id, name, age, marks, city
 
-Question: {question}
+Rules:
+- Use only the table and columns provided above.
+- If the question asks for a column that does not exist, return exactly:
+INVALID_QUESTION
+- Return only the SQL query if the question is valid.
+- Do not use Markdown code fences.
+- Do not include explanations.
 
-Return only the SQL query.
+Question: {question}
 """
 
         response = client.models.generate_content(
@@ -34,9 +41,14 @@ Return only the SQL query.
             contents=prompt
         )
 
-        sql = response.text
+        sql = response.text.strip()
 
-    return render_template("index.html", sql=sql)
+        if sql == "INVALID_QUESTION":
+            sql = "Invalid question: the requested column does not exist."
+        else:
+            sql = sql.replace("```sql", "").replace("```", "").strip()
+
+    return render_template("index.html", sql=sql,question=question)
 
 
 if __name__ == "__main__":

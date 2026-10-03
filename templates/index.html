@@ -13,7 +13,7 @@
 
         <p>Enter your question:</p>
 
-        <textarea name="question" rows="5" cols="50"></textarea>
+        <textarea name="question" rows="5" cols="50">{{ question }}</textarea>
 
         <br><br>
 
@@ -26,10 +26,18 @@
 
     <h2>Generated SQL:</h2>
 
-    <pre>{{ sql }}</pre>
+    <pre id="sqlOutput">{{ sql }}</pre>
+    <button onclick="copySQL()">Copy SQL</button>
 
     {% endif %}
 
 </body>
+<script>
+    function copySQL() {
+        const copytext = document.getElementById("sqlOutput").innerText;
+        navigator.clipboard.writeText(copytext);
+        alert("Copied to clipboard");
+    }
+</script>
 
 </html>
