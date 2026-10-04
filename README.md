@@ -1,157 +1,108 @@
-# Text-to-SQL Project
+# Text-to-SQL Converter
 
-A simple, beginner-friendly learning project designed to convert natural-language questions into SQL queries using Python, Flask, and an LLM API.
+A lightweight, beginner-friendly web application built with Python and Flask that translates natural-language questions into SQL queries using Google's Gemini API (`gemini-3.5-flash-lite`).
 
----
-
-## Project Description
-
-Many developers and analysts want an intuitive way to interact with databases without manually writing SQL queries for every request. This project explores the fundamentals of web development and natural language processing by building a simple web application that accepts human language questions and translates them into valid SQL queries.
+The application features prompt-based guardrails, input validation, post-generation SQL sanitization, and a clean web interface with one-click query copying.
 
 ---
 
-## Current Project Status
+## Features
 
-> [!NOTE]
-> **Work in Progress**: This project is in its foundational setup phase. The basic Flask backend and HTML frontend are connected to receive user input, but **Text-to-SQL conversion is NOT yet implemented**. Currently, the application accepts user input and echoes it back.
-
----
-
-## Features Completed
-
-- [x] Python virtual environment configured using `venv`.
-- [x] Flask framework installed and configured.
-- [x] Basic web application created in `app.py`.
-- [x] Flask local development server running successfully.
-- [x] HTML frontend created using `templates/index.html`.
-- [x] Textarea form input for entering natural-language questions.
-- [x] Form submission configured with HTTP `POST` requests.
-- [x] Flask backend receives question input using `request.form["question"]`.
-- [x] Flask displays the received question back to the user.
-- [x] Fundamental understanding and routing of `GET` and `POST` requests.
-- [x] Git version control initialized.
-- [x] `.gitignore` configured to ignore `venv/`, `__pycache__/`, `*.pyc`, and `.env`.
-- [x] Code pushed to GitHub repository.
+- **Natural Language to SQL Generation**: Converts plain English queries (e.g., *"Show students whose marks are greater than 80"*) into standard SQL syntax.
+- **Schema-Aware Prompting**: Guides the Gemini model with a predefined database schema and strict generation constraints.
+- **Empty-Input Validation**: Validates form inputs on the server before dispatching requests to the Gemini API.
+- **Invalid-Column Detection**: Prompts the LLM to return a flag if requested attributes do not exist in the schema, displaying a clear warning to the user.
+- **Out-of-Scope Filtering**: Identifies questions unrelated to the target database table and prompts the user for relevant input.
+- **SQL Sanitization**: Strips Markdown code blocks (````sql ... ````) from the LLM response to ensure clean query output.
+- **Table Verification**: Performs a sanity check ensuring that only the authorized `students` table is referenced.
+- **State Preservation**: Keeps the user's submitted question in the textarea after generation for easy modification.
+- **One-Click Clipboard Copy**: Built-in JavaScript button to quickly copy the generated SQL query.
+- **Resilient Error Handling**: Catches API failures and network issues gracefully to prevent application crashes.
 
 ---
 
-## Planned Features / Roadmap
+## Tech Stack
 
-### Step 4 — Learn Basic SQL
-- Core SQL commands: `SELECT`, `FROM`, `WHERE`, `GROUP BY`, `ORDER BY`
-- Filtering conditions and basic comparison operators
-- Database terminology: tables, columns, rows, and data types
-
-### Step 5 — Learn LLM & API Basics
-- Core concepts: What is an LLM and how web APIs work
-- Structuring API requests and handling JSON responses
-- Managing secrets securely with environment variables (`.env`)
-- Security practice: Never expose API keys in public Git repositories
-
-### Step 6 — Implement Text-to-SQL Conversion
-- Connect Flask backend to an LLM API.
-- Pass database schema / table structures into the model prompt.
-- Instruct the model to generate accurate SQL based on user queries.
-- Return the generated SQL query back to the frontend.
-- **Example Scenario**:
-  - **User Input:** `"Show all students whose marks are greater than 80"`
-  - **Expected Generated SQL:**
-    ```sql
-    SELECT * FROM students WHERE marks > 80;
-    ```
-
-### Step 7 — Application Improvements
-- Clean UI layout to clearly display generated SQL queries.
-- Input validation (handle empty submissions and whitespace).
-- Graceful error handling for API timeouts or failures.
-- Enhance HTML and CSS design while keeping the codebase lightweight and minimal.
-
-### Step 8 — Testing and Documentation
-- Test edge cases, unsupported queries, and various question formats.
-- Refine system prompts to improve SQL query generation accuracy.
-- Update documentation with usage examples and project walkthroughs.
-- Prepare clear explanations of the architecture for interview demonstrations.
+| Layer | Technology | Description |
+| :--- | :--- | :--- |
+| **Backend** | Python 3 | Core programming language |
+| **Web Framework** | Flask | Handles HTTP routing (`GET`/`POST`) and template rendering |
+| **AI / LLM** | Google Gemini API (`gemini-3.5-flash-lite`) | Natural language understanding and SQL translation |
+| **SDK** | `google-genai` | Official Google GenAI Python client |
+| **Configuration** | `python-dotenv` | Manages environment variables securely from `.env` |
+| **Frontend** | HTML5, CSS, JavaScript | Interactive web UI with clipboard integration |
+| **Version Control** | Git & GitHub | Source code management |
 
 ---
 
-## Technology Stack
+## How It Works
 
-- **Backend:** Python, Flask
-- **Frontend:** HTML5, CSS (Vanilla), JavaScript (if needed for copy/interactions)
-- **Query Language:** SQL
-- **AI Integration:** LLM API (planned in upcoming steps)
-- **Version Control:** Git, GitHub
+```text
+User enters a natural-language question
+                 ↓
+      Flask receives POST request
+                 ↓
+      Empty / whitespace check?
+       ├── [Empty] ──> Display "Please enter a question."
+       └── [Valid]
+                 ↓
+  Construct prompt with schema & rules
+                 ↓
+    Call Google Gemini API
+                 ↓
+       Parse model response:
+       ├── INVALID_QUESTION ──> "Invalid question: the requested column does not exist."
+       ├── OUT_OF_SCOPE     ──> "Out of scope: the question is not related to the students table."
+       └── [Valid SQL]
+                 ↓
+   Strip Markdown fences (```sql)
+                 ↓
+   Verify 'students' table is present
+                 ↓
+   Render generated SQL in browser
+                 ↓
+   User can copy SQL to clipboard
+```
 
 ---
 
-## Current Project Structure
+## Current Database Schema
+
+The application is configured around a single demo table representing student records:
+
+### Table: `students`
+
+| Column | Data Type | Description |
+| :--- | :--- | :--- |
+| `id` | INTEGER | Unique identifier for each student |
+| `name` | VARCHAR | Full name of the student |
+| `age` | INTEGER | Student's age |
+| `marks` | INTEGER / FLOAT | Academic score or marks scored |
+| `city` | VARCHAR | City of residence |
+
+---
+
+## Project Structure
 
 ```text
 Text to Sql project/
-│
-├── venv/
 ├── templates/
-│   └── index.html
-├── .gitignore
-├── app.py
-└── README.md
+│   └── index.html          # Web frontend (form, SQL display, copy button)
+├── .env                    # Local environment variables (API keys - gitignored)
+├── .gitignore              # Ignores venv, .env, and Python cache files
+├── app.py                  # Main Flask application and Gemini API logic
+├── geminiapitest.py        # Standalone test script for Gemini API verification
+└── README.md               # Project documentation
 ```
 
 ---
 
-## How the Application Currently Works
+## Installation and Setup
 
-```text
-Browser
-   ↓
-HTML Form
-   ↓
-POST Request
-   ↓
-Flask
-   ↓
-request.form["question"]
-   ↓
-Question returned to browser
-```
-
-1. The user opens the home page (`/`) in the browser.
-2. The browser renders `templates/index.html` displaying a question form.
-3. The user types a question (e.g., *"Show all students whose marks are greater than 80"*) into the textarea and submits the form.
-4. The browser sends a `POST` request to Flask.
-5. Flask extracts the string using `request.form["question"]`.
-6. Flask returns the plain text question directly back to the browser.
-
----
-
-## Planned Final Workflow
-
-```text
-User enters natural-language question
-        ↓
-HTML frontend
-        ↓
-Flask backend
-        ↓
-LLM API + database schema
-        ↓
-Generated SQL query
-        ↓
-Flask response
-        ↓
-SQL displayed to user
-```
-
-1. The user inputs their natural-language query in the frontend form.
-2. The frontend submits the query to Flask backend via `POST`.
-3. Flask prepares a prompt combining the user's question and the database schema.
-4. Flask sends the prompt to an LLM API.
-5. The LLM generates the corresponding SQL query.
-6. Flask receives the query and renders it cleanly back in the user interface.
-
----
-
-## How to Run the Project Locally
+### Prerequisites
+- Python 3.10 or higher installed on your system
+- A Google Gemini API key (obtainable from [Google AI Studio](https://aistudio.google.com/))
+- Git installed on your system
 
 ### 1. Clone the repository
 ```bash
@@ -160,46 +111,139 @@ cd Text-to-SQL-Project
 ```
 
 ### 2. Set up a virtual environment
-- **On Windows:**
-  ```cmd
-  python -m venv venv
-  venv\Scripts\activate
+
+- **On Windows (PowerShell):**
+  ```powershell
+  python -m venv .venv
+  .\.venv\Scripts\Activate.ps1
   ```
+
+- **On Windows (Command Prompt):**
+  ```cmd
+  python -m venv .venv
+  .venv\Scripts\activate.bat
+  ```
+
 - **On macOS / Linux:**
   ```bash
-  python3 -m venv venv
-  source venv/bin/activate
+  python3 -m venv .venv
+  source .venv/bin/activate
   ```
 
 ### 3. Install dependencies
 ```bash
-pip install flask
-```
-
-### 4. Run the Flask application
-```bash
-python app.py
-```
-
-### 5. Access the application
-Open your web browser and navigate to:
-```
-http://127.0.0.1:5000
+pip install flask google-genai python-dotenv
 ```
 
 ---
 
-## GitHub Repository
+## Environment Variables
 
-Source code and project updates are hosted on GitHub:
-- [https://github.com/om-saxena34/Text-to-SQL-Project](https://github.com/om-saxena34/Text-to-SQL-Project)
+Create a file named `.env` in the root directory of the project:
+
+```env
+GEMINI_API_KEY="your_actual_gemini_api_key_here"
+```
+
+> [!IMPORTANT]
+> Never commit your `.env` file or expose your API keys in public repositories. The `.env` file is already listed in `.gitignore` to prevent accidental commits.
+
+---
+
+## How to Run
+
+### 1. (Optional) Test the Gemini API connection
+You can run the standalone verification script to verify that your API key and connection are working:
+```bash
+python geminiapitest.py
+```
+
+### 2. Start the Flask application
+```bash
+python app.py
+```
+
+### 3. Open the application in your browser
+Navigate to:
+```text
+http://127.0.0.1:5000
+```
+
+Type a question into the text area, click **Convert to SQL**, and view or copy the resulting SQL query.
+
+---
+
+## Example Questions and Generated SQL
+
+| User Question | Generated SQL Query | Notes |
+| :--- | :--- | :--- |
+| *"Show all students whose marks are greater than 80"* | `SELECT * FROM students WHERE marks > 80;` | Filtering condition |
+| *"List the names and cities of all students"* | `SELECT name, city FROM students;` | Specific column projection |
+| *"Find students who live in Delhi"* | `SELECT * FROM students WHERE city = 'Delhi';` | String equality filter |
+| *"Show the top 5 students sorted by marks"* | `SELECT * FROM students ORDER BY marks DESC LIMIT 5;` | Ordering and row limiting |
+| *"Count the total number of students in each city"* | `SELECT city, COUNT(*) FROM students GROUP BY city;` | Aggregation & grouping |
+
+---
+
+## Error Handling & Validation
+
+The application applies validation across multiple stages of execution:
+
+1. **Pre-flight Input Validation**:
+   - If the user submits an empty or whitespace-only query, the application returns `"Please enter a question."` without making an API request.
+2. **Schema Integrity Guardrails**:
+   - If the user requests a column not in the schema (e.g., *"Show students by email"*), the model returns `INVALID_QUESTION`, which is displayed as:
+     `Invalid question: the requested column does not exist.`
+3. **Domain Relevance Guardrails**:
+   - If the user asks a question unrelated to the student records (e.g., *"What is the capital of France?"*), the model returns `OUT_OF_SCOPE`, which is displayed as:
+     `Out of scope: the question is not related to the students table.`
+4. **Table Name Sanitization**:
+   - Verifies that the string `students` is present in the generated SQL. If absent, the query is rejected with:
+     `Invalid SQL: only the students table is allowed.`
+5. **API Exception Handling**:
+   - In case of network errors, invalid keys, or quota issues with Gemini, a `try/except` block logs the exception to the server console and displays a friendly notice to the user:
+     `Something went wrong while generating SQL. Please try again.`
+
+---
+
+## Current Limitations
+
+To maintain clear project scope, please note the following current boundaries:
+- **No Direct Database Execution**: The app generates and displays SQL syntax; it does not connect to or execute queries against a live MySQL or SQLite database.
+- **No Query Results Display**: Because no live database is connected, no data rows or query outputs are retrieved.
+- **Single-Table Scope**: The model is restricted strictly to the `students` table schema.
+- **Basic String-Based Validation**: Verification relies on prompt constraints and substring checks rather than a full SQL AST parser.
+- **Development Server**: The application runs via the built-in Flask development server and is not configured for production deployment (WSGI/Gunicorn).
+- **No User Management**: Does not include user authentication, sessions, or query history persistence.
 
 ---
 
 ## Future Improvements
 
-- Add support for custom table schemas.
-- Add a "Copy Query" button for generated SQL.
-- Implement syntax highlighting for SQL output.
-- Add sample query templates for quick user testing.
-- Optional integration with a local SQLite database to test and execute generated queries.
+The following items represent planned enhancements for subsequent phases:
+
+- [ ] **Live Database Integration**: Connect the backend to a local or cloud-hosted MySQL / SQLite database.
+- [ ] **Query Execution & Result Display**: Execute the generated SQL query safely and render results in a structured HTML table.
+- [ ] **Advanced SQL Parsing & Security**: Integrate a SQL parser (such as `sqlglot`) to validate syntax and block destructive operations (`DROP`, `DELETE`, `UPDATE`, `ALTER`).
+- [ ] **Multi-Table & Custom Schemas**: Support multiple relational tables, table joins (`INNER JOIN`, `LEFT JOIN`), and user-defined schemas.
+- [ ] **Enhanced UI/UX**: Introduce a modern responsive design with syntax highlighting, dark mode toggle, and execution time indicators.
+- [ ] **Production Deployment**: Containerize with Docker and deploy to a cloud platform (such as Render, Railway, or AWS).
+
+---
+
+## Learning Outcomes
+
+Building this project provided hands-on experience with:
+- **LLM Prompt Engineering**: Designing system instructions with explicit boundaries, output formatting rules, and sentinel tokens (`INVALID_QUESTION`, `OUT_OF_SCOPE`).
+- **Full-Stack Flask Architecture**: Managing HTTP request lifecycles (`GET`/`POST`), form processing, and dynamic template rendering with Jinja2.
+- **Defensive API Integration**: Handling asynchronous AI services with fallback states, error catches, and response sanitization.
+- **Environment & Secrets Management**: Safeguarding API keys using environment variables and `.gitignore`.
+- **Client-Side Clipboard Interactions**: Integrating vanilla JavaScript for clipboard copy actions directly from rendered templates.
+
+---
+
+## Author
+
+**Om Saxena**
+- GitHub: [@om-saxena34](https://github.com/om-saxena34)
+- Repository: [Text-to-SQL-Project](https://github.com/om-saxena34/Text-to-SQL-Project)
