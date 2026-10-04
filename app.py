@@ -35,7 +35,7 @@ INVALID_QUESTION
 
 Question: {question}
 """
-
+    try:
         response = client.models.generate_content(
             model="gemini-3.5-flash-lite",
             contents=prompt
@@ -46,7 +46,10 @@ Question: {question}
         if sql == "INVALID_QUESTION":
             sql = "Invalid question: the requested column does not exist."
         else:
-            sql = sql.replace("```sql", "").replace("```", "").strip()
+            sql = sql.replace("```sql", "").replace("```", "").strip()        
+    except Exception as e:
+        print("Gemini API Error:", e)
+        sql = "Something went wrong while generating SQL. Please try again."        
 
     return render_template("index.html", sql=sql,question=question)
 
