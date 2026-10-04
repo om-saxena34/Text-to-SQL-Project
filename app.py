@@ -19,6 +19,11 @@ def home():
 
         question = request.form["question"]
 
+        # Check if question is empty
+        if not question.strip():
+            sql = "Please enter a question."
+            return render_template("index.html", sql=sql, question=question)
+
         prompt = f"""
 Convert the following question into SQL.
 
@@ -29,29 +34,37 @@ Rules:
 - Use only the table and columns provided above.
 - If the question asks for a column that does not exist, return exactly:
 INVALID_QUESTION
+- If the question is not related to the students table, return exactly:
+OUT_OF_SCOPE
 - Return only the SQL query if the question is valid.
 - Do not use Markdown code fences.
 - Do not include explanations.
 
 Question: {question}
 """
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
-            contents=prompt
-        )
 
-        sql = response.text.strip()
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=prompt
+            )
 
-        if sql == "INVALID_QUESTION":
-            sql = "Invalid question: the requested column does not exist."
-        else:
-            sql = sql.replace("```sql", "").replace("```", "").strip()        
-    except Exception as e:
-        print("Gemini API Error:", e)
-        sql = "Something went wrong while generating SQL. Please try again."        
+            sql = response.text.strip()
 
-    return render_template("index.html", sql=sql,question=question)
+            if sql == "INVALID_QUESTION":
+                sql = "Invalid question: the requested column does not exist."
+            elif sql == "OUT_OF_SCOPE":
+                sql = "Out of scope: the question is not related to the students table."
+            else:
+                sql = sql.replace("```sql", "").replace("```", "").strip()
+                if "students" not in sql.lower():
+                     sql = "Invalid SQL: only the students table is allowed."
+
+        except Exception as e:
+            print("Gemini API Error:", e)
+            sql = "Something went wrong while generating SQL. Please try again."
+
+    return render_template("index.html", sql=sql, question=question)
 
 
 if __name__ == "__main__":
