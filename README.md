@@ -1,116 +1,136 @@
-# Text-to-SQL Converter
+# Text-to-SQL: Natural Language to SQL Query Generator
 
-A lightweight, beginner-friendly web application built with Python and Flask that translates natural-language questions into SQL queries using Google's Gemini API (`gemini-3.5-flash-lite`).
-
-The application features prompt-based guardrails, input validation, post-generation SQL sanitization, and a clean web interface with one-click query copying.
+A full-stack Python and Flask web application that converts plain-English questions into SQL queries using Google's Gemini API (`gemini-3.5-flash-lite`), validates generated queries using Abstract Syntax Tree (AST) analysis via **SQLGlot**, and executes safe read-only queries against a **MySQL** database with tabular results displayed in real time.
 
 ---
 
-## Features
+## Project Overview
 
-- **Natural Language to SQL Generation**: Converts plain English queries (e.g., *"Show students whose marks are greater than 80"*) into standard SQL syntax.
-- **Schema-Aware Prompting**: Guides the Gemini model with a predefined database schema and strict generation constraints.
-- **Empty-Input Validation**: Validates form inputs on the server before dispatching requests to the Gemini API.
-- **Invalid-Column Detection**: Prompts the LLM to return a flag if requested attributes do not exist in the schema, displaying a clear warning to the user.
-- **Out-of-Scope Filtering**: Identifies questions unrelated to the target database table and prompts the user for relevant input.
-- **SQL Sanitization**: Strips Markdown code blocks (````sql ... ````) from the LLM response to ensure clean query output.
-- **Table Verification**: Performs a sanity check ensuring that only the authorized `students` table is referenced.
-- **State Preservation**: Keeps the user's submitted question in the textarea after generation for easy modification.
-- **One-Click Clipboard Copy**: Built-in JavaScript button to quickly copy the generated SQL query.
-- **Resilient Error Handling**: Catches API failures and network issues gracefully to prevent application crashes.
+Writing SQL queries can be challenging for non-technical users or domain experts who want quick answers from a database. This project bridges that gap by allowing users to enter natural-language questions (e.g., *"Show students whose marks are greater than 80"* or *"Count the number of students in Delhi"*).
+
+The application processes the input through a multi-tier pipeline:
+1. **Natural Language Processing**: Translates the question into SQL using Google Gemini API guided by schema-aware prompts and sentinel tokens.
+2. **Defensive AST Validation**: Analyzes the generated query using `sqlglot` to verify that it is strictly a single, read-only `SELECT` statement targeting the authorized `students` table and permitted columns.
+3. **Database Execution**: Connects to MySQL using `mysql-connector-python` to execute the validated query and fetch matching records.
+4. **Interactive Web Interface**: Renders the generated SQL, error feedback, tabular database results, and a one-click clipboard copy utility.
+
+---
+
+## Workflow Architecture
+
+```mermaid
+flowchart TD
+    User["User submits question via Web UI"] --> CheckEmpty{"Is question empty?"}
+    CheckEmpty -- "Yes" --> ErrEmpty["Display: 'Please enter a question.'"]
+    CheckEmpty -- "No" --> PromptGen["Construct schema-aware prompt with strict rules"]
+    PromptGen --> GeminiAPI["Call Gemini API (gemini-3.5-flash-lite)"]
+    GeminiAPI --> RespCheck{"Model Response"}
+    RespCheck -- "INVALID_QUESTION" --> ErrInv["Display: 'Invalid question: the requested column does not exist.'"]
+    RespCheck -- "OUT_OF_SCOPE" --> ErrScope["Display: 'Out of scope: the question is not related to the students table.'"]
+    RespCheck -- "SQL Generated" --> CleanSQL["Strip Markdown code fences (```sql)"]
+    CleanSQL --> CheckTable{"Contains 'students' substring?"}
+    CheckTable -- "No" --> ErrTable["Display: 'Invalid SQL: only the students table is allowed.'"]
+    CheckTable -- "Yes" --> ValidateAST{"Validate via SQLGlot AST (is_safe_select_query)"}
+    ValidateAST -- "Rejected" --> ErrVal["Display: 'Query validation failed: only read-only SELECT queries...'"]
+    ValidateAST -- "Approved" --> RunDB["Connect to MySQL & execute query"]
+    RunDB --> DBCheck{"Execution Status"}
+    DBCheck -- "Error" --> ErrDB["Catch exception & display database execution error"]
+    DBCheck -- "Success" --> ShowResults["Render SQL, Results Table & Copy SQL Button"]
+```
+
+---
+
+## Key Features
+
+- **Natural Language to SQL Generation**: Translates conversational questions into standard SQL queries using Google's `gemini-3.5-flash-lite` model via the `google-genai` SDK.
+- **Schema-Aware Prompt Guardrails**: System instructions guide the LLM to restrict queries strictly to the defined schema and return special sentinel tokens (`INVALID_QUESTION`, `OUT_OF_SCOPE`) when appropriate.
+- **AST-Based SQL Validation with SQLGlot**: Parses the generated SQL into an Abstract Syntax Tree using MySQL syntax rules to enforce strict security constraints before reaching the database.
+- **Strict Query Sanitization**:
+  - Rejects queries containing SQL comments (`--`, `/*`, `*/`, `#`).
+  - Requires exactly one SQL statement (prevents stacked query injection).
+  - Permits only `SELECT` operations.
+  - Rejects `JOIN`, `UNION`, `INTERSECT`, `EXCEPT`, subqueries, and CTEs (`WITH`).
+  - Restricts execution exclusively to the `students` table.
+  - Enforces a column whitelist (`id`, `name`, `age`, `marks`, `city`, and `*`).
+  - Restricts functions to safe mathematical/aggregate functions (`COUNT`, `AVG`, `SUM`, `MIN`, `MAX`, `ROUND`).
+- **MySQL Database Integration**: Connects dynamically to a MySQL database using `mysql-connector-python` to execute validated queries.
+- **Tabular Result Rendering**: Dynamically extracts column headers from `cursor.description` and renders query rows in a clean HTML table. Displays *"No records found."* if the query returns an empty result set.
+- **One-Click Clipboard Copy**: Built-in vanilla JavaScript button allowing users to copy the generated SQL query with one click.
+- **State Preservation**: Retains the user's input question in the form textarea across submissions for rapid refinement.
+- **Comprehensive Error Handling**: Gracefully catches empty inputs, Gemini API failures, AST validation rejections, and MySQL database runtime errors without crashing the server.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Description |
+| Component | Technology | Description |
 | :--- | :--- | :--- |
-| **Backend** | Python 3 | Core programming language |
-| **Web Framework** | Flask | Handles HTTP routing (`GET`/`POST`) and template rendering |
+| **Backend Framework** | Flask 3 | Lightweight WSGI web application framework handling routes and templating |
+| **Language** | Python 3 | Core application language |
 | **AI / LLM** | Google Gemini API (`gemini-3.5-flash-lite`) | Natural language understanding and SQL translation |
-| **SDK** | `google-genai` | Official Google GenAI Python client |
-| **Configuration** | `python-dotenv` | Manages environment variables securely from `.env` |
-| **Frontend** | HTML5, CSS, JavaScript | Interactive web UI with clipboard integration |
+| **GenAI SDK** | `google-genai` | Official Google GenAI Python SDK |
+| **SQL Parser & AST** | SQLGlot (`sqlglot`) | Dialect-aware SQL parser used for AST validation |
+| **Database** | MySQL Server | Relational database hosting the target dataset |
+| **Database Driver** | `mysql-connector-python` | Official MySQL database driver for Python |
+| **Environment Config** | `python-dotenv` | Loads environment variables securely from `.env` |
+| **Frontend** | HTML5, CSS, Vanilla JavaScript | Web interface with responsive forms, tabular display, and clipboard API |
 | **Version Control** | Git & GitHub | Source code management |
 
 ---
 
-## How It Works
+## Database Schema
 
-```text
-User enters a natural-language question
-                 ↓
-      Flask receives POST request
-                 ↓
-      Empty / whitespace check?
-       ├── [Empty] ──> Display "Please enter a question."
-       └── [Valid]
-                 ↓
-  Construct prompt with schema & rules
-                 ↓
-    Call Google Gemini API
-                 ↓
-       Parse model response:
-       ├── INVALID_QUESTION ──> "Invalid question: the requested column does not exist."
-       ├── OUT_OF_SCOPE     ──> "Out of scope: the question is not related to the students table."
-       └── [Valid SQL]
-                 ↓
-   Strip Markdown fences (```sql)
-                 ↓
-   Verify 'students' table is present
-                 ↓
-   Render generated SQL in browser
-                 ↓
-   User can copy SQL to clipboard
-```
-
----
-
-## Current Database Schema
-
-The application is configured around a single demo table representing student records:
+The application operates against a single table representing student information:
 
 ### Table: `students`
 
-| Column | Data Type | Description |
-| :--- | :--- | :--- |
-| `id` | INTEGER | Unique identifier for each student |
-| `name` | VARCHAR | Full name of the student |
-| `age` | INTEGER | Student's age |
-| `marks` | INTEGER / FLOAT | Academic score or marks scored |
-| `city` | VARCHAR | City of residence |
+| Column | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `INT` | `AUTO_INCREMENT`, `PRIMARY KEY` | Unique identifier for each student |
+| `name` | `VARCHAR(100)` | `NOT NULL` | Student's full name |
+| `age` | `INT` | Nullable | Student's age |
+| `marks` | `INT` | Nullable | Academic marks/score |
+| `city` | `VARCHAR(100)` | Nullable | City of residence |
 
 ---
 
 ## Project Structure
 
 ```text
-Text to Sql project/
+Text-to-SQL-Project/
 ├── templates/
-│   └── index.html          # Web frontend (form, SQL display, copy button)
-├── .env                    # Local environment variables (API keys - gitignored)
-├── .gitignore              # Ignores venv, .env, and Python cache files
-├── app.py                  # Main Flask application and Gemini API logic
-├── geminiapitest.py        # Standalone test script for Gemini API verification
+│   └── index.html          # Web frontend template (form, SQL display, results table)
+├── .env                    # Local environment variables (DB credentials, API key - gitignored)
+├── .gitignore              # Ignores virtual environments (.venv), .env, and Python cache files
+├── app.py                  # Main Flask application, Gemini integration, SQLGlot validator, DB execution
+├── geminiapitest.py        # Standalone verification script for Gemini API connectivity
+├── test_validator.py       # Automated test suite for SQLGlot query validation rules
 └── README.md               # Project documentation
 ```
 
 ---
 
+## Prerequisites
+
+Before running the project, ensure you have the following installed:
+
+1. **Python 3.10 or higher** (Python 3.12 recommended)
+2. **MySQL Server 8.0 or higher** (running locally or accessible via network)
+3. **Google Gemini API Key**: Obtainable from [Google AI Studio](https://aistudio.google.com/)
+4. **Git** for repository cloning
+
+---
+
 ## Installation and Setup
 
-### Prerequisites
-- Python 3.10 or higher installed on your system
-- A Google Gemini API key (obtainable from [Google AI Studio](https://aistudio.google.com/))
-- Git installed on your system
-
 ### 1. Clone the repository
-```bash
+
+```powershell
 git clone https://github.com/om-saxena34/Text-to-SQL-Project.git
 cd Text-to-SQL-Project
 ```
 
-### 2. Set up a virtual environment
+### 2. Create and activate a Python virtual environment
 
 - **On Windows (PowerShell):**
   ```powershell
@@ -130,115 +150,201 @@ cd Text-to-SQL-Project
   source .venv/bin/activate
   ```
 
-### 3. Install dependencies
-```bash
-pip install flask google-genai python-dotenv
+### 3. Install required dependencies
+
+Install all required packages into your active virtual environment:
+
+```powershell
+pip install flask google-genai mysql-connector-python python-dotenv sqlglot
+```
+
+### 4. Configure environment variables
+
+Create a `.env` file in the root project directory:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+DB_HOST=localhost
+DB_NAME=texttosql
+DB_USER=textsql_reader
+DB_PASSWORD=your_mysql_password_here
+```
+
+> [!IMPORTANT]
+> Never commit your `.env` file to version control. The repository's `.gitignore` file is already configured to exclude `.env`.
+
+### 5. Set up the MySQL Database and Sample Table
+
+Log in to your MySQL server (via MySQL Command Line Client, MySQL Workbench, or your terminal):
+
+```sql
+-- 1. Create the database
+CREATE DATABASE IF NOT EXISTS texttosql;
+USE texttosql;
+
+-- 2. Create the students table
+CREATE TABLE IF NOT EXISTS students (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    age INT,
+    marks INT,
+    city VARCHAR(100)
+);
+
+-- 3. Insert sample data
+INSERT INTO students (name, age, marks, city) VALUES
+('Aarav Sharma', 20, 85, 'Delhi'),
+('Diya Patel', 21, 92, 'Mumbai'),
+('Rohan Gupta', 19, 78, 'Delhi'),
+('Ananya Iyer', 22, 88, 'Bengaluru'),
+('Kabir Singh', 20, 65, 'Pune'),
+('Ishita Verma', 21, 95, 'Delhi'),
+('Arjun Mehta', 23, 72, 'Mumbai');
+
+-- 4. Create a restricted, read-only MySQL user (Defense-in-Depth)
+CREATE USER IF NOT EXISTS 'textsql_reader'@'localhost' IDENTIFIED BY 'your_mysql_password_here';
+GRANT SELECT ON texttosql.students TO 'textsql_reader'@'localhost';
+FLUSH PRIVILEGES;
 ```
 
 ---
 
 ## Environment Variables
 
-Create a file named `.env` in the root directory of the project:
-
-```env
-GEMINI_API_KEY="your_actual_gemini_api_key_here"
-```
-
-> [!IMPORTANT]
-> Never commit your `.env` file or expose your API keys in public repositories. The `.env` file is already listed in `.gitignore` to prevent accidental commits.
+| Variable Name | Required | Default / Example | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GEMINI_API_KEY` | Yes | `AIzaSy...` | API key used by `google-genai` to access Gemini models |
+| `DB_HOST` | Yes | `localhost` | Hostname or IP address of the MySQL server |
+| `DB_NAME` | Yes | `texttosql` | Name of the database containing the `students` table |
+| `DB_USER` | Yes | `textsql_reader` | MySQL username (recommended: restricted read-only user) |
+| `DB_PASSWORD` | Yes | `your_password` | Password for the MySQL user account |
 
 ---
 
-## How to Run
+## Usage
 
-### 1. (Optional) Test the Gemini API connection
-You can run the standalone verification script to verify that your API key and connection are working:
-```bash
+### 1. (Optional) Verify Gemini API Connectivity
+
+Run the standalone verification script to test your Gemini API key and prompt response:
+
+```powershell
 python geminiapitest.py
 ```
 
-### 2. Start the Flask application
-```bash
+### 2. Start the Flask Application
+
+Run the application with:
+
+```powershell
 python app.py
 ```
 
-### 3. Open the application in your browser
-Navigate to:
+The Flask development server starts locally:
 ```text
-http://127.0.0.1:5000
+ * Serving Flask app 'app'
+ * Debug mode: on
+ * Running on http://127.0.0.1:5000
 ```
 
-Type a question into the text area, click **Convert to SQL**, and view or copy the resulting SQL query.
+### 3. Open in Browser and Execute Queries
 
----
+1. Open `http://127.0.0.1:5000` in your web browser.
+2. Enter a natural language question in the textarea.
+3. Click **Convert to SQL**.
+4. View the generated SQL statement, use **Copy SQL** to copy it to your clipboard, and inspect the retrieved records in the query results table.
 
-## Example Questions and Generated SQL
+### Example Questions & Expected Outputs
 
-| User Question | Generated SQL Query | Notes |
+| Natural Language Question | Generated SQL Query | Query Status / Execution Result |
 | :--- | :--- | :--- |
-| *"Show all students whose marks are greater than 80"* | `SELECT * FROM students WHERE marks > 80;` | Filtering condition |
-| *"List the names and cities of all students"* | `SELECT name, city FROM students;` | Specific column projection |
-| *"Find students who live in Delhi"* | `SELECT * FROM students WHERE city = 'Delhi';` | String equality filter |
-| *"Show the top 5 students sorted by marks"* | `SELECT * FROM students ORDER BY marks DESC LIMIT 5;` | Ordering and row limiting |
-| *"Count the total number of students in each city"* | `SELECT city, COUNT(*) FROM students GROUP BY city;` | Aggregation & grouping |
+| *"Show all students whose marks are greater than 80"* | `SELECT * FROM students WHERE marks > 80;` | Approved & Executed (returns matching rows) |
+| *"Find students who live in Delhi"* | `SELECT * FROM students WHERE city = 'Delhi';` | Approved & Executed (returns Delhi records) |
+| *"Count the total number of students"* | `SELECT COUNT(*) FROM students;` | Approved & Executed (returns count) |
+| *"Show the average marks of students"* | `SELECT AVG(marks) FROM students;` | Approved & Executed (returns average) |
+| *"Show students sorted by marks descending"* | `SELECT * FROM students ORDER BY marks DESC;` | Approved & Executed (returns sorted rows) |
+| *"Show students with their phone numbers"* | `INVALID_QUESTION` | Rejected at LLM stage (column does not exist) |
+| *"What is the weather in Delhi?"* | `OUT_OF_SCOPE` | Rejected at LLM stage (unrelated to students table) |
 
 ---
 
-## Error Handling & Validation
+## SQL Safety and Validation
 
-The application applies validation across multiple stages of execution:
+Allowing an AI model to generate SQL that executes against a live database presents significant security considerations, including SQL injection, cross-table data exfiltration, and resource exhaustion.
 
-1. **Pre-flight Input Validation**:
-   - If the user submits an empty or whitespace-only query, the application returns `"Please enter a question."` without making an API request.
-2. **Schema Integrity Guardrails**:
-   - If the user requests a column not in the schema (e.g., *"Show students by email"*), the model returns `INVALID_QUESTION`, which is displayed as:
-     `Invalid question: the requested column does not exist.`
-3. **Domain Relevance Guardrails**:
-   - If the user asks a question unrelated to the student records (e.g., *"What is the capital of France?"*), the model returns `OUT_OF_SCOPE`, which is displayed as:
-     `Out of scope: the question is not related to the students table.`
-4. **Table Name Sanitization**:
-   - Verifies that the string `students` is present in the generated SQL. If absent, the query is rejected with:
-     `Invalid SQL: only the students table is allowed.`
-5. **API Exception Handling**:
-   - In case of network errors, invalid keys, or quota issues with Gemini, a `try/except` block logs the exception to the server console and displays a friendly notice to the user:
-     `Something went wrong while generating SQL. Please try again.`
+To mitigate these risks, this project implements a **multi-layered validation architecture**:
 
----
+### 1. Pre-Execution AST Parsing (`sqlglot`)
+The `is_safe_select_query(query)` function in `app.py` enforces the following deterministic rules using `sqlglot`:
 
-## Current Limitations
+1. **Comment Rejection**: Rejects any query containing `--`, `/*`, `*/`, or `#`.
+2. **Single-Statement Rule**: Parses the query via `sqlglot.parse(cleaned, read="mysql")` and requires exactly one statement (`len(statements) == 1`). Multi-statement query chaining is blocked.
+3. **Select-Only Root**: Verifies that the root AST node is strictly `sqlglot.expressions.Select`. Data modification (`INSERT`, `UPDATE`, `DELETE`) and schema manipulation (`DROP`, `ALTER`, `TRUNCATE`) are blocked.
+4. **No Joins or Set Operations**: Checks `tree.find(exp.Join)` and `tree.find(exp.Union)`. Cross-table joins and UNION-based data extraction are strictly rejected.
+5. **No Subqueries or CTEs**: Checks `tree.find(exp.Subquery)` and `tree.find(exp.CTE)`. Nested queries and common table expressions are rejected.
+6. **Table Whitelist**: Inspects all `exp.Table` nodes. Rejects any query referencing a table other than `students`.
+7. **Column Whitelist**: Inspects all `exp.Column` nodes. Only `id`, `name`, `age`, `marks`, `city`, and wildcard `*` are allowed. Qualified columns referencing unexpected table aliases are blocked.
+8. **Function Whitelist**: Inspects all `exp.Func` nodes. Only whitelisted aggregate/scalar functions (`COUNT`, `AVG`, `SUM`, `MIN`, `MAX`, `ROUND`) are permitted. Destructive or dangerous functions (such as `SLEEP()`, `BENCHMARK()`, `LOAD_FILE()`, `USER()`) are blocked.
 
-To maintain clear project scope, please note the following current boundaries:
-- **No Direct Database Execution**: The app generates and displays SQL syntax; it does not connect to or execute queries against a live MySQL or SQLite database.
-- **No Query Results Display**: Because no live database is connected, no data rows or query outputs are retrieved.
-- **Single-Table Scope**: The model is restricted strictly to the `students` table schema.
-- **Basic String-Based Validation**: Verification relies on prompt constraints and substring checks rather than a full SQL AST parser.
-- **Development Server**: The application runs via the built-in Flask development server and is not configured for production deployment (WSGI/Gunicorn).
-- **No User Management**: Does not include user authentication, sessions, or query history persistence.
+### 2. Database Least-Privilege Account (Defense-in-Depth)
+Application-layer validation is complemented by database-level access controls:
+- The application connects using a dedicated user (`textsql_reader`) granted **only** `SELECT` privileges on `texttosql.students`.
+- Even if an unvalidated query were somehow processed by the application layer, the database engine enforces read-only access and denies any modification, deletion, or access to other tables and databases.
+
+> [!WARNING]
+> While these validation checks significantly restrict the attack surface, no dynamic SQL execution system should be considered 100% immune to vulnerabilities. The protections implemented here are scoped specifically for a single-table educational prototype.
 
 ---
 
-## Future Improvements
+## Testing
 
-The following items represent planned enhancements for subsequent phases:
+The project includes an automated validation test script, `test_validator.py`, to verify that `is_safe_select_query()` correctly permits legitimate queries and rejects unsafe or out-of-scope queries without requiring database connectivity.
 
-- [ ] **Live Database Integration**: Connect the backend to a local or cloud-hosted MySQL / SQLite database.
-- [ ] **Query Execution & Result Display**: Execute the generated SQL query safely and render results in a structured HTML table.
-- [ ] **Advanced SQL Parsing & Security**: Integrate a SQL parser (such as `sqlglot`) to validate syntax and block destructive operations (`DROP`, `DELETE`, `UPDATE`, `ALTER`).
-- [ ] **Multi-Table & Custom Schemas**: Support multiple relational tables, table joins (`INNER JOIN`, `LEFT JOIN`), and user-defined schemas.
-- [ ] **Enhanced UI/UX**: Introduce a modern responsive design with syntax highlighting, dark mode toggle, and execution time indicators.
-- [ ] **Production Deployment**: Containerize with Docker and deploy to a cloud platform (such as Render, Railway, or AWS).
+### Running the Validation Tests
+
+Activate your virtual environment and run:
+
+```powershell
+python test_validator.py
+```
+
+### Verified Test Cases
+
+The test suite in `test_validator.py` evaluates the following 13 specific cases:
+
+| Query | Expected Result | Actual Result | Rule Enforced |
+| :--- | :---: | :---: | :--- |
+| `SELECT * FROM students` | `True` | `True` | Allowed: Wildcard selection on authorized table |
+| `SELECT name FROM students WHERE marks > 80` | `True` | `True` | Allowed: Permitted column with numeric filter |
+| `SELECT COUNT(*) FROM students` | `True` | `True` | Allowed: Whitelisted aggregate function and wildcard |
+| `SELECT name FROM students JOIN users ON 1=1` | `False` | `False` | Blocked: `JOIN` expressions are forbidden |
+| `SELECT name FROM students UNION SELECT name FROM users` | `False` | `False` | Blocked: `UNION` operations are forbidden |
+| `SELECT salary FROM students` | `False` | `False` | Blocked: `salary` is not in the column whitelist |
+| `DELETE FROM students` | `False` | `False` | Blocked: Non-SELECT statements are forbidden |
+| `SELECT name FROM students; SELECT name FROM users` | `False` | `False` | Blocked: Stacked statements are forbidden |
+| `SELECT name FROM students WHERE city = 'Delhi'` | `True` | `True` | Allowed: Permitted column with string filter |
+| `SELECT SLEEP(5) FROM students` | `False` | `False` | Blocked: `SLEEP` is not an approved function |
+| `SELECT name FROM users` | `False` | `False` | Blocked: Query targets an unauthorized table (`users`) |
+| `SELECT name FROM students WHERE id = 1 -- comment` | `False` | `False` | Blocked: SQL comments are forbidden |
+| `SELECT s.name FROM students s` | `False` | `False` | Blocked: Table alias `s` does not match table whitelist rule |
 
 ---
 
-## Learning Outcomes
+## Limitations and Future Improvements
 
-Building this project provided hands-on experience with:
-- **LLM Prompt Engineering**: Designing system instructions with explicit boundaries, output formatting rules, and sentinel tokens (`INVALID_QUESTION`, `OUT_OF_SCOPE`).
-- **Full-Stack Flask Architecture**: Managing HTTP request lifecycles (`GET`/`POST`), form processing, and dynamic template rendering with Jinja2.
-- **Defensive API Integration**: Handling asynchronous AI services with fallback states, error catches, and response sanitization.
-- **Environment & Secrets Management**: Safeguarding API keys using environment variables and `.gitignore`.
-- **Client-Side Clipboard Interactions**: Integrating vanilla JavaScript for clipboard copy actions directly from rendered templates.
+### Current Limitations
+- **Single-Table Scope**: The application only supports the `students` table. Multi-table schemas and relational queries are not supported.
+- **Table Aliases Not Permitted**: Queries using table aliases (e.g., `SELECT s.name FROM students s`) are currently blocked because column validation requires the qualifier to match `"students"` directly.
+- **Subqueries Disabled**: Even legitimate subqueries (such as *"Show students with marks above the average"* &rarr; `WHERE marks > (SELECT AVG(marks) FROM students)`) are rejected by the strict no-subquery security rule.
+- **Unbounded Result Sets**: The application does not automatically append or enforce a `LIMIT` clause, meaning large queries could return substantial datasets into memory.
+- **Development Server**: The application runs via Flask's built-in development server and is not configured for production WSGI servers (e.g., Gunicorn or Waitress).
+- **No User Management**: Does not include user authentication, session handling, or query history persistence.
+
+### Future Improvements
+- [ ] **Safe Subquery Evaluation**: Support single-table subqueries on `students` while maintaining strict isolation from external tables.
+- [ ] **Alias Resolution**: Enhance the AST validator to resolve table aliases (e.g., `students s`) so standard aliased queries are recognized safely.
+- [ ] **Pagination and Result Limits**: Enforce default pagination (e.g., `LIMIT 50`) to optimize query performance and prevent memory exhaustion.
+- [ ] **Multi-Table Relational Support**: Extend the schema and validator to support defined foreign key relationships and explicitly approved `INNER JOIN` operations.
+- [ ] **Production Deployment**: Configure a production WSGI server (e.g., Gunicorn or Waitress) and containerize the application using Docker.
 
 ---
 
@@ -246,4 +352,4 @@ Building this project provided hands-on experience with:
 
 **Om Saxena**
 - GitHub: [@om-saxena34](https://github.com/om-saxena34)
-- Repository: [Text-to-SQL-Project](https://github.com/om-saxena34/Text-to-SQL-Project)
+- Repository: [om-saxena34/Text-to-SQL-Project](https://github.com/om-saxena34/Text-to-SQL-Project)
