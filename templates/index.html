@@ -31,6 +31,36 @@
 
     {% endif %}
 
+    {% if db_error %}
+    <p style="color: red;">{{ db_error }}</p>
+    {% endif %}
+
+    {% if query_executed %}
+    <h2>Query Results:</h2>
+    {% if rows %}
+    <table border="1" cellpadding="6" cellspacing="0">
+        <thead>
+            <tr>
+                {% for col in columns %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No records found.</p>
+    {% endif %}
+    {% endif %}
+
 </body>
 <script>
     function copySQL() {
