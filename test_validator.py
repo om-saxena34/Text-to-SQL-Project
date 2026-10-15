@@ -15,6 +15,14 @@ tests = [
 ("SELECT name FROM users", False),
 ("SELECT name FROM students WHERE id = 1 -- comment", False),
 ("SELECT s.name FROM students s", False),
+("SELECT name FROM students WHERE city = 'Delhi'", True),
+("SELECT SLEEP(5) FROM students", False),
+("SELECT name FROM users", False),
+("SELECT name FROM students WHERE id IN (SELECT id FROM students)", False),
+("SELECT s.name FROM students s", False),
+("SELECT name FROM students -- comment", False),
+("SELECT name FROM students WHERE marks > 80; DELETE FROM students", False),
+
 ]
 
 for query, expected in tests:

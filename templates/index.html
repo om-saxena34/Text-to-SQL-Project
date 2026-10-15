@@ -1,73 +1,379 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>Text to SQL</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to SQL Converter</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f7fb;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: min(960px, 92%);
+            margin: 48px auto;
+        }
+
+        .header {
+            margin-bottom: 28px;
+        }
+
+        .header h1 {
+            margin: 0 0 8px;
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            color: #163b70;
+        }
+
+        .header p {
+            margin: 0;
+            color: #64748b;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 26px;
+            margin-bottom: 22px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        textarea {
+            display: block;
+            width: 100%;
+            min-height: 130px;
+            resize: vertical;
+            padding: 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font: inherit;
+            color: #1e293b;
+            background: #fff;
+        }
+
+        textarea:focus {
+            outline: 3px solid #dbeafe;
+            border-color: #3b82f6;
+        }
+
+        .hint {
+            margin: 8px 0 18px;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        button {
+            border: 0;
+            border-radius: 9px;
+            padding: 11px 18px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .primary-button {
+            color: #fff;
+            background: #2563eb;
+        }
+
+        .primary-button:hover {
+            background: #1d4ed8;
+        }
+
+        button:focus-visible {
+            outline: 3px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .result-heading {
+            margin: 0 0 16px;
+            font-size: 1.3rem;
+            color: #163b70;
+        }
+
+        .sql-output {
+            overflow-x: auto;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        .sql-output pre {
+            margin: 0;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.95rem;
+        }
+
+        .secondary-button {
+            margin-top: 12px;
+            background: #eaf1ff;
+            color: #1d4ed8;
+        }
+
+        .secondary-button:hover {
+            background: #dbeafe;
+        }
+
+        .message {
+            margin-top: 18px;
+            padding: 12px 14px;
+            border-radius: 9px;
+            overflow-wrap: anywhere;
+        }
+
+        .error-message {
+            color: #991b1b;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+        }
+
+        .success-message {
+            color: #166534;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th,
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background: #eff6ff;
+            color: #1e40af;
+            font-weight: 600;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+            color: #1d4ed8;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 3px solid #bfdbfe;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            padding: 8px 0 24px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                margin: 24px auto;
+            }
+
+            .card {
+                padding: 18px;
+            }
+
+            th,
+            td {
+                padding: 10px;
+            }
+
+            .primary-button {
+                width: 100%;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
 </head>
 
 <body>
+    <main class="container">
+        <header class="header">
+            <h1>Text to SQL Converter</h1>
+            <p>Turn your questions into SQL and explore your student data.</p>
+        </header>
 
-    <h1>Text to SQL Converter</h1>
+        <section class="card">
+            <form id="query-form" method="POST" action="/">
+                <label for="question">Enter your question</label>
+                <textarea id="question" name="question"
+                    placeholder="Example: Show all students who scored more than 80 marks"
+                    required>{{ question | default('', true) }}</textarea>
 
-    <form method="POST">
+                <p class="hint">Ask a question about the students table in plain English.</p>
 
-        <p>Enter your question:</p>
+                <button class="primary-button" id="submit-button" type="submit">
+                    Convert to SQL
+                </button>
 
-        <textarea name="question" rows="5" cols="50">{{ question }}</textarea>
+                <div class="loading" id="loading-indicator" role="status" aria-live="polite">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <span>Generating SQL and fetching results…</span>
+                </div>
+            </form>
+        </section>
 
-        <br><br>
+        {% if sql %}
+        <section class="card" aria-labelledby="sql-heading">
+            <h2 class="result-heading" id="sql-heading">Generated SQL / Response</h2>
 
-        <button type="submit">Convert to SQL</button>
+            <div class="sql-output">
+                <pre id="sql-text">{{ sql }}</pre>
+            </div>
 
-    </form>
+            <button class="secondary-button" id="copy-button" type="button">
+                Copy SQL
+            </button>
+            <span id="copy-status" role="status" aria-live="polite"></span>
 
+            {% if db_error %}
+            <div class="message error-message" role="alert">{{ db_error }}</div>
+            {% endif %}
+        </section>
+        {% endif %}
 
-    {% if sql %}
+        {% if columns and rows %}
+        <section class="card" aria-labelledby="results-heading">
+            <h2 class="result-heading" id="results-heading">Query Results</h2>
 
-    <h2>Generated SQL:</h2>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            {% for column in columns %}
+                            <th scope="col">{{ column }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            {% for cell in row %}
+                            <td>{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% elif query_executed %}
+        <section class="card">
+            <div class="message success-message" role="status">
+                No records found for this query.
+            </div>
+        </section>
+        {% endif %}
 
-    <pre id="sqlOutput">{{ sql }}</pre>
-    <button onclick="copySQL()">Copy SQL</button>
+        <footer class="footer">
+            Text to SQL Converter · Built with Flask, Gemini and MySQL
+        </footer>
+    </main>
 
-    {% endif %}
+    <script>
+        const form = document.getElementById("query-form");
+        const submitButton = document.getElementById("submit-button");
+        const loadingIndicator = document.getElementById("loading-indicator");
 
-    {% if db_error %}
-    <p style="color: red;">{{ db_error }}</p>
-    {% endif %}
+        form.addEventListener("submit", function () {
+            if (!form.reportValidity()) {
+                return;
+            }
 
-    {% if query_executed %}
-    <h2>Query Results:</h2>
-    {% if rows %}
-    <table border="1" cellpadding="6" cellspacing="0">
-        <thead>
-            <tr>
-                {% for col in columns %}
-                <th>{{ col }}</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in rows %}
-            <tr>
-                {% for cell in row %}
-                <td>{{ cell }}</td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p>No records found.</p>
-    {% endif %}
-    {% endif %}
+            submitButton.disabled = true;
+            submitButton.textContent = "Processing…";
+            loadingIndicator.style.display = "flex";
+        });
 
+        const copyButton = document.getElementById("copy-button");
+        const sqlText = document.getElementById("sql-text");
+        const copyStatus = document.getElementById("copy-status");
+
+        if (copyButton && sqlText && copyStatus) {
+            copyButton.addEventListener("click", async function () {
+                const text = sqlText.textContent.trim();
+
+                try {
+                    await navigator.clipboard.writeText(text);
+                    copyStatus.textContent = " Copied!";
+                } catch (error) {
+                    const range = document.createRange();
+                    range.selectNodeContents(sqlText);
+
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    copyStatus.textContent = " Select the highlighted SQL and copy it.";
+                }
+            });
+        }
+    </script>
 </body>
-<script>
-    function copySQL() {
-        const copytext = document.getElementById("sqlOutput").innerText;
-        navigator.clipboard.writeText(copytext);
-        alert("Copied to clipboard");
-    }
-</script>
 
 </html>
